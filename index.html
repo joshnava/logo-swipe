@@ -182,6 +182,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
 .edit .thumb { cursor: pointer; position: relative; }
 .edit .thumb.marked { outline: 2px solid var(--brick); outline-offset: -2px; }
 .edit .thumb.marked .art { opacity: .7; }
+.edit .thumb.sug:not(.marked)::after { content: "More than one logo"; position: absolute; top: 12px; right: 12px; background: var(--tile); color: var(--gold); border: 1px solid var(--gold); font-size: 12px; padding: 2px 9px; border-radius: 999px; }
 .edit .thumb.marked::after { content: "Remove"; position: absolute; top: 12px; right: 12px; background: var(--brick); color: var(--cream); font-size: 12px; padding: 3px 10px; border-radius: 999px; }
 .thumb .eid { display: none; }
 .edit .thumb .eid { display: block; color: var(--gold); font-size: 12px; margin-top: 2px; }
@@ -301,8 +302,8 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
       </div>
     </div>
     <div class="editbar" id="editBar" hidden>
-      <p>Edit mode. Tap a logo to mark it for removal, and tap it again to keep it. Claude's suggestions, the images that show more than one logo, are already marked. When you're done, tap Copy list and paste it to Claude, who will take those logos out of the deck for everyone.</p>
-      <div class="row"><button class="go" type="button" id="copyEdit">Copy list</button><button class="ghost" type="button" id="onlyMarked" aria-pressed="false">Show marked only</button><button class="ghost" type="button" id="resetEdit">Reset to suggestions</button><span class="count" id="editCount"></span></div>
+      <p>Tap any logo you want taken out of the deck. It gets a red Remove tag, and tapping it again keeps it. Logos with a gold tag show more than one logo, so look at those first. When you're done, tap Copy removal list and paste it to Claude.</p>
+      <div class="row"><button class="go" type="button" id="copyEdit">Copy removal list</button><button class="ghost" type="button" id="onlyMarked" aria-pressed="false">Show gold-tagged only</button><button class="ghost" type="button" id="resetEdit">Clear my picks</button><span class="count" id="editCount"></span></div>
       <textarea id="editOut" rows="3" readonly hidden></textarea>
     </div>
     <div class="filters chips" id="bFilters" role="group" aria-label="Filter by style"></div>
@@ -819,7 +820,8 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
   // ---------- edit mode (?edit) ----------
   if (/[?&]edit\b/.test(location.search)) {
     const SUG = ["p001", "p003", "p004", "p006", "p027", "p030", "p059", "p060", "p061", "p069", "p073", "p089", "p097", "p098", "p099", "p100", "p101", "p103", "p109", "p002", "p007", "p009", "p011", "p012", "p015", "p022", "p026", "p033", "p035", "p038", "p042", "p050", "p071", "p077", "p084", "p090", "p095"];
-    let marked = new Set(lsGet("la-edit") || SUG), only = false;
+    const SUGSET = new Set(SUG);
+    let marked = new Set(lsGet("la-remove") || []), only = false;
     document.body.classList.add("edit"); $("#editBar").hidden = false;
     const thumbs = [...document.querySelectorAll("#bGrid .thumb")];
     thumbs.forEach(f => { const im = f.querySelector("img"); if (im) { im.loading = "eager"; const s = im.getAttribute("src"); im.removeAttribute("src"); im.setAttribute("src", s); } });
@@ -834,14 +836,15 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
       f.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
     });
     function paint() {
-      lsSet("la-edit", [...marked]);
-      thumbs.forEach(f => { const m = marked.has(f.dataset.id); f.classList.toggle("marked", m); if (only) f.hidden = !m; });
+      lsSet("la-remove", [...marked]);
+      thumbs.forEach(f => { const m = marked.has(f.dataset.id); f.classList.toggle("marked", m); f.classList.toggle("sug", SUGSET.has(f.dataset.id)); if (only) f.hidden = !SUGSET.has(f.dataset.id); });
       const inMeet = [...marked].filter(id => BY_ID[id] && BY_ID[id].meeting).length;
-      $("#editCount").textContent = `${marked.size} marked, ${inMeet} of them in the meeting set`;
+      $("#editCount").textContent = marked.size ? `${marked.size} marked to remove${inMeet ? `, ${inMeet} of them in the meeting set` : ""}` : "Nothing marked yet";
     }
-    $("#onlyMarked").addEventListener("click", e => { only = !only; e.currentTarget.setAttribute("aria-pressed", String(only)); e.currentTarget.textContent = only ? "Show all" : "Show marked only"; if (!only) thumbs.forEach(f => f.hidden = false); paint(); });
-    $("#resetEdit").addEventListener("click", () => { marked = new Set(SUG); paint(); });
+    $("#onlyMarked").addEventListener("click", e => { only = !only; e.currentTarget.setAttribute("aria-pressed", String(only)); e.currentTarget.textContent = only ? "Show all" : "Show gold-tagged only"; if (!only) thumbs.forEach(f => f.hidden = false); paint(); });
+    $("#resetEdit").addEventListener("click", () => { marked = new Set(); paint(); });
     $("#copyEdit").addEventListener("click", () => {
+      if (!marked.size) { $("#editCount").textContent = "Tap a logo first"; return; }
       const text = "Remove these logos from the swipe deck: " + [...marked].sort().join(", ");
       const out = $("#editOut");
       const fallback = () => { out.hidden = false; out.value = text; out.select(); $("#editCount").textContent = "Copy the text below"; };
