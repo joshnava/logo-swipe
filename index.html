@@ -112,6 +112,19 @@ input[type="text"]::placeholder { color: var(--stone); }
 .v.no { background: var(--brick); color: var(--cream); }
 .v.love { background: var(--gold); color: var(--tile); }
 .v.yes { background: var(--teal); color: var(--cream); }
+.notes { width: 100%; display: grid; gap: 10px; }
+.notes .ghost { justify-self: start; }
+.notes form { display: grid; gap: 10px; background: var(--tile); border: 1px solid var(--slate); border-radius: 24px; padding: 16px; }
+.notes textarea { font-size: 16px; min-height: 84px; resize: vertical; caret-color: var(--gold); }
+.notes form .go { width: auto; padding: 12px 20px; font-size: 15px; justify-self: start; }
+.nlist { display: grid; gap: 8px; }
+.nitem { margin: 0; background: var(--deep); border-radius: 16px; padding: 10px 14px; font-size: 15px; line-height: 1.5; color: var(--mist); overflow-wrap: anywhere; }
+.nitem b { color: var(--cream); font-weight: 500; }
+.flag { display: inline-block; background: var(--gold); color: var(--tile); font-size: 12px; padding: 1px 9px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+.nrow { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--slate); }
+.nrow:first-of-type { border-top: 0; }
+.nrow .thumb { grid-template-rows: 72px auto; }
+.nrow .thumb .art img { max-height: 56px; }
 .keys { font-size: 13px; color: var(--stone); text-align: center; margin: 0; }
 @media (hover: none) { .keys { display: none; } }
 .minor { display: flex; justify-content: space-between; width: 100%; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -232,6 +245,16 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
         <button class="v love" type="button" data-vote="love">Love</button>
         <button class="v yes" type="button" data-vote="yes">Yes</button>
       </div>
+      <div class="notes">
+        <div class="nlist" id="nList"></div>
+        <button class="ghost" type="button" id="noteOpen">Add a note</button>
+        <form id="noteForm" hidden>
+          <label for="noteText" class="label">Note about this logo</label>
+          <textarea id="noteText" rows="3" maxlength="2000" placeholder="A comment, a reaction or a question to come back to"></textarea>
+          <label class="toggle"><input type="checkbox" id="noteFollow"> Needs a follow-up</label>
+          <div class="row"><button class="go" type="submit">Save note</button><button class="ghost" type="button" id="noteCancel">Cancel</button></div>
+        </form>
+      </div>
       <p class="keys">On a computer you can use the arrow keys. Left is No, up is Love, right is Yes, and Backspace undoes your last answer.</p>
       <div class="minor">
         <button class="ghost" type="button" id="undoBtn">Undo last</button>
@@ -259,6 +282,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
       </div>
       <div class="chips" id="rWho" role="group" aria-label="Show results for"></div>
     </div>
+    <div class="box wide" id="rNotes" style="margin-bottom:12px" hidden></div>
     <div class="grid2" id="rBody">
       <div class="box wide"><p class="empty">No swipes yet. Results fill in here as you swipe.</p></div>
     </div>
@@ -580,7 +604,28 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     // preload two ahead
     [queue[pos + 2], queue[pos + 3]].forEach(id => { if (id) { const im = new Image(); im.src = `img/${id}.webp`; } });
     bindDrag(deckEl.querySelector(".card.top"));
+    closeNote(); renderNotes(queue[pos]);
   }
+  // ---------- notes ----------
+  let notes = lsGet("la-notes") || [];
+  function renderNotes(id) {
+    const mine = notes.filter(n => n.card === id);
+    $("#nList").innerHTML = mine.map(n => `<p class="nitem"><b>${esc(n.by)}</b> ${esc(n.text)}${n.follow ? '<span class="flag">Follow-up</span>' : ""}</p>`).join("");
+  }
+  function closeNote() { $("#noteForm").hidden = true; $("#noteOpen").hidden = false; $("#noteText").value = ""; $("#noteFollow").checked = false; }
+  $("#noteOpen").addEventListener("click", () => { $("#noteForm").hidden = false; $("#noteOpen").hidden = true; $("#noteText").focus(); });
+  $("#noteCancel").addEventListener("click", closeNote);
+  $("#noteForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const text = $("#noteText").value.trim(), id = queue[pos];
+    if (!text || !id || !who) return;
+    const n = { card: id, by: who, text, follow: $("#noteFollow").checked, at: Date.now() };
+    notes.push(n); lsSet("la-notes", notes);
+    const c = BY_ID[id];
+    outbox.push({ voter: who, card: id, vote: "note", note: text, follow: n.follow, deck: deckName, at: n.at, genre: c ? c.genre : "", tone: c ? c.tone : "", device: DEVICE });
+    lsSet("la-outbox", outbox); pump();
+    closeNote(); renderNotes(id);
+  });
   $("#showNames").addEventListener("change", () => deckEl.querySelectorAll(".nm").forEach(n => n.hidden = !$("#showNames").checked));
 
   function finish() {
@@ -711,6 +756,12 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     $("#rWho").querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => { rFor = b.dataset.r; renderResults(); }));
     $("#rTitle").textContent = rFor === "Everyone" ? `Everyone (${names.length} ${names.length === 1 ? "person" : "people"})` : rFor;
     const vs = rFor === "Everyone" ? names : [rFor];
+    const ns = notes.filter(n => rFor === "Everyone" || n.by === rFor).sort((a, b) => (b.follow - a.follow) || (a.at - b.at));
+    const byCard = {}; ns.forEach(n => (byCard[n.card] = byCard[n.card] || []).push(n));
+    const nf = ns.filter(n => n.follow).length;
+    $("#rNotes").hidden = !ns.length;
+    $("#rNotes").innerHTML = ns.length ? `<h3>Notes</h3><p class="sub">${ns.length} ${ns.length === 1 ? "note" : "notes"} on this device, ${nf} marked for follow-up.</p>` +
+      Object.entries(byCard).map(([id, list]) => { const c = BY_ID[id]; return c ? `<div class="nrow">${thumbHTML(c, GENRE[c.genre])}<div class="nlist">${list.map(n => `<p class="nitem"><b>${esc(n.by)}</b> ${esc(n.text)}${n.follow ? '<span class="flag">Follow-up</span>' : ""}</p>`).join("")}</div></div>` : ""; }).join("") : "";
     const total = vs.reduce((n, v) => n + Object.keys(votes[v] || {}).length, 0);
     if (!total) { $("#rBody").innerHTML = `<div class="box wide"><p class="empty">No swipes yet. Results fill in here as you swipe.</p></div>`; return; }
     const key = `<div class="key"><span><i style="background:var(--gold)"></i>Love</span><span><i style="background:var(--teal-hi)"></i>Yes</span><span class="k">Bar shows the share of swipes that were Yes or Love. The small number is how many cards of that kind they saw.</span></div>`;
@@ -735,6 +786,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
   function csv() {
     const rows = [["voter", "card_id", "name", "place", "source", "style", "tone", "features", "vote", "time"]];
     Object.entries(votes).forEach(([v, m]) => Object.entries(m).forEach(([id, r]) => { const c = BY_ID[id]; if (!c) return; rows.push([v, id, c.name, c.place, SRC[c.source], GENRE[c.genre], c.tone, c.features.join(" "), r.vote, r.at ? new Date(r.at).toISOString() : ""]); }));
+    notes.forEach(n => { const c = BY_ID[n.card]; if (!c) return; rows.push([n.by, n.card, c.name, c.place, SRC[c.source], GENRE[c.genre], c.tone, c.features.join(" "), (n.follow ? "follow-up note: " : "note: ") + n.text, new Date(n.at).toISOString()]); });
     return rows.map(r => r.map(x => /[",\n]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : x).join(",")).join("\n");
   }
   $("#copyCsv").addEventListener("click", () => {
