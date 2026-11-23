@@ -67,7 +67,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .marks { display: inline-flex; gap: 4px; vertical-align: .08em; background: var(--mist); border-radius: 999px; padding: 4px 8px; margin: 0 .06em; }
 .marks img { width: .78em; height: .62em; object-fit: contain; display: block; }
 .start .lede { color: var(--fog); margin: 0 auto; max-width: 54ch; text-align: center; line-height: 1.75; }
-.how { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 20px; font-size: 15px; color: var(--fog); margin: 0; padding: 0; list-style: none; }
+.how { display: grid; justify-items: center; text-align: center; gap: 6px; font-size: 15px; color: var(--fog); margin: 0; padding: 0; list-style: none; }
 .how b { font-weight: 500; }
 .how .n b { color: #e07a5c; } .how .l b { color: var(--gold); } .how .y b { color: var(--teal-hi); }
 .panel { background: var(--tile); border: 1px solid var(--slate); border-radius: 28px; padding: 24px; display: grid; gap: 14px; }
@@ -190,27 +190,27 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
   <!-- SWIPE -->
   <section class="view" id="view-swipe" aria-label="Swipe">
     <div class="start" id="startPane">
-      <h1>Which of these <span class="marks" aria-hidden="true"><img src="img/c01.webp" alt=""><img src="img/d02.webp" alt=""><img src="img/n09.webp" alt=""></span> <em>feel right</em> for the school? <span class="dim">Swipe on each one.</span></h1>
-      <p class="lede">React to the look, not the school's name or reputation. Names stay hidden while you swipe so the style does the talking. Every swipe is sent to Josh under your name so we can see the patterns afterward.</p>
-      <ul class="how"><li class="n"><b>No</b>, not for us</li><li class="l"><b>Love</b>, this is close</li><li class="y"><b>Yes</b>, I like this direction</li></ul>
+      <h1>Which of these <span class="marks" aria-hidden="true"><img src="img/c01.webp" alt=""><img src="img/d02.webp" alt=""><img src="img/n09.webp" alt=""></span> logo styles <em>fit</em> your school?</h1>
+      <p class="lede">You'll see one logo at a time with the school's name hidden, so you can judge each one by how it looks. Your answers come to Josh with your name on them, and we'll use them to see which styles your team is drawn to.</p>
+      <ul class="how"><li class="n"><b>No</b> means it's not right for your school.</li><li class="l"><b>Love</b> means it's close to what you want.</li><li class="y"><b>Yes</b> means you like the direction.</li></ul>
       <div class="panel">
         <div class="chips" id="whoChips" hidden></div>
         <div class="row">
           <label for="whoOther" class="label" style="margin-right:4px">Your first name</label>
-          <input type="text" id="whoOther" placeholder="Type a first name" autocomplete="off" maxlength="40">
+          <input type="text" id="whoOther" placeholder="First name" autocomplete="off" maxlength="40">
         </div>
       </div>
       <div class="panel">
-        <div class="label" id="deckLabel">Which set?</div>
+        <div class="label" id="deckLabel">Choose a set</div>
         <div class="chips" role="group" aria-labelledby="deckLabel" id="deckChips">
           <button class="chip" type="button" data-deck="meeting" aria-pressed="true">Meeting set <small>66</small></button>
           <button class="chip" type="button" data-deck="schools" aria-pressed="false">All schools <small>85</small></button>
           <button class="chip" type="button" data-deck="board" aria-pressed="false">Inspiration board <small>113</small></button>
           <button class="chip" type="button" data-deck="all" aria-pressed="false">Everything <small>198</small></button>
         </div>
-        <p class="note" style="margin:0">The meeting set mixes Nashville schools, schools from our national research and pieces from the inspiration board, from safe and traditional to bold. It takes about four minutes. If you stop partway, open this page again on the same phone and it picks up where you left off.</p>
+        <p class="note" style="margin:0">The meeting set has 66 logos and takes about four minutes. It includes Nashville schools, schools from other parts of the country and designs from Josh's inspiration board, ranging from traditional to bold. If you stop partway, open this page again on the same device and it will pick up where you left off.</p>
       </div>
-      <button class="go" id="goBtn" type="button" disabled>Type your name to start</button>
+      <button class="go" id="goBtn" type="button" disabled>Enter your name to start</button>
     </div>
 
     <div class="stage" id="stage" hidden>
@@ -222,7 +222,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
         <button class="v love" type="button" data-vote="love">Love</button>
         <button class="v yes" type="button" data-vote="yes">Yes</button>
       </div>
-      <p class="keys">On a keyboard, use the left, up and right arrow keys. Backspace undoes.</p>
+      <p class="keys">On a computer you can use the arrow keys. Left is No, up is Love, right is Yes, and Backspace undoes your last answer.</p>
       <div class="minor">
         <button class="ghost" type="button" id="undoBtn">Undo last</button>
         <label class="toggle"><input type="checkbox" id="showNames"> Show names</label>
@@ -518,10 +518,10 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     refreshGo();
   }
   function refreshGo() {
-    if (!who) { goBtn.disabled = true; goBtn.textContent = "Type your name to start"; return; }
+    if (!who) { goBtn.disabled = true; goBtn.textContent = "Enter your name to start"; return; }
     const q = deckCards(deckName), seen = q.filter(id => votes[who] && votes[who][id]).length;
     goBtn.disabled = false;
-    goBtn.textContent = seen && seen < q.length ? `Pick up where ${who} left off (${seen} of ${q.length} done)` : seen === q.length && q.length ? `${who} finished this set. Go through again` : `Start swiping as ${who}`;
+    goBtn.textContent = seen && seen < q.length ? `Continue (${seen} of ${q.length} done)` : seen === q.length && q.length ? `Start this set again` : `Start`;
   }
   document.querySelectorAll("#whoChips .chip").forEach(b => b.addEventListener("click", () => { other.value = ""; pickWho(b.dataset.who); }));
   other.addEventListener("input", () => { pickWho(other.value); });
