@@ -279,7 +279,8 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     <div class="rhead">
       <div>
         <h2 id="rTitle">Everyone</h2>
-        <p class="note" style="margin:6px 0 0">Swipes made on this device. Everyone's answers are in the team sheet.</p>
+        <p class="note" style="margin:6px 0 0" id="rSource">Swipes made on this device.</p>
+        <button class="ghost" type="button" id="rRefresh" hidden style="margin-top:10px">Refresh</button>
       </div>
       <div class="chips" id="rWho" role="group" aria-label="Show results for"></div>
     </div>
@@ -545,7 +546,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     if (!["swipe", "results", "browse"].includes(view) || (view === "results" && !TEAM)) view = "swipe";
     document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "view-" + view));
     document.querySelectorAll(".tabs a").forEach(a => { if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
-    if (view === "results") renderResults();
+    if (view === "results") { renderResults(); loadShared(); }
   }
   window.addEventListener("hashchange", () => show(location.hash.slice(1)));
 
@@ -725,6 +726,46 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
   window.addEventListener("pagehide", () => { if (outbox.length && navigator.sendBeacon) { const b = new URLSearchParams(); b.set(FORM.entry, JSON.stringify(outbox)); if (navigator.sendBeacon(FORM.action, b)) { outbox = []; lsSet("la-outbox", outbox); } } });
   function connect() { _pump(); }
 
+  // ---------- everyone's answers (team link only) ----------
+  const KEY = new URLSearchParams(location.search).get("team");
+  let loading = false, cbN = 0;
+  if (KEY && /^[A-Za-z0-9_-]{20,}$/.test(KEY)) $("#rRefresh").hidden = false;
+  $("#rRefresh").addEventListener("click", () => loadShared(true));
+  function loadShared() {
+    if (!KEY || !/^[A-Za-z0-9_-]{20,}$/.test(KEY) || loading) return;
+    loading = true; $("#rSource").textContent = "Loading everyone's answers…";
+    const name = "__laCb" + (++cbN), s = document.createElement("script");
+    const done = ok => { loading = false; delete window[name]; s.remove(); if (!ok) $("#rSource").textContent = "Couldn't load everyone's answers. Showing this device only."; };
+    const timer = setTimeout(() => done(false), 12000);
+    window[name] = res => {
+      clearTimeout(timer);
+      try {
+        const events = [];
+        (res.table.rows || []).forEach(r => { const cell = r.c && r.c[1]; if (!cell || !cell.v) return; try { const arr = JSON.parse(cell.v); (Array.isArray(arr) ? arr : [arr]).forEach(e => events.push(e)); } catch (e) {} });
+        events.sort((a, b) => (a.at || 0) - (b.at || 0));
+        const seen = new Set(notes.map(n => `${n.by}|${n.card}|${n.at}`));
+        events.forEach(e => {
+          if (!e || !e.voter || !e.card || !BY_ID[e.card] || /^test$/i.test(String(e.voter).trim())) return;
+          const v = String(e.voter).trim();
+          if (e.vote === "note") { const k = `${v}|${e.card}|${e.at}`; if (!seen.has(k) && e.note) { seen.add(k); notes.push({ card: e.card, by: v, text: String(e.note), follow: !!e.follow, at: e.at || 0 }); } return; }
+          votes[v] = votes[v] || {};
+          const l = votes[v][e.card];
+          if (l && (l.at || 0) > (e.at || 0)) return;
+          if (e.vote === "clear") delete votes[v][e.card];
+          else if (["yes", "no", "love"].includes(e.vote)) votes[v][e.card] = { vote: e.vote, at: e.at || 0 };
+        });
+        lsSet("la-notes", notes); persistLocal();
+        const tm = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        $("#rSource").textContent = `Everyone's answers, updated ${tm}.`;
+        done(true);
+        if ($("#view-results").classList.contains("on")) renderResults();
+      } catch (err) { done(false); }
+    };
+    s.onerror = () => { clearTimeout(timer); done(false); };
+    s.src = `https://docs.google.com/spreadsheets/d/${KEY}/gviz/tq?tqx=responseHandler:${name}&headers=1&t=${Date.now()}`;
+    document.head.appendChild(s);
+  }
+
   // ---------- results ----------
   let rFor = "Everyone";
   function voterNames() { return Object.keys(votes).filter(v => Object.keys(votes[v]).length).sort(); }
@@ -760,7 +801,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     const byCard = {}; ns.forEach(n => (byCard[n.card] = byCard[n.card] || []).push(n));
     const nf = ns.filter(n => n.follow).length;
     $("#rNotes").hidden = !ns.length;
-    $("#rNotes").innerHTML = ns.length ? `<h3>Notes</h3><p class="sub">${ns.length} ${ns.length === 1 ? "note" : "notes"} on this device, ${nf} marked for follow-up.</p>` +
+    $("#rNotes").innerHTML = ns.length ? `<h3>Notes</h3><p class="sub">${ns.length} ${ns.length === 1 ? "note" : "notes"}, ${nf} marked for follow-up.</p>` +
       Object.entries(byCard).map(([id, list]) => { const c = BY_ID[id]; return c ? `<div class="nrow">${thumbHTML(c, GENRE[c.genre])}<div class="nlist">${list.map(n => `<p class="nitem"><b>${esc(n.by)}</b> ${esc(n.text)}${n.follow ? '<span class="flag">Follow-up</span>' : ""}</p>`).join("")}</div></div>` : ""; }).join("") : "";
     const total = vs.reduce((n, v) => n + Object.keys(votes[v] || {}).length, 0);
     if (!total) { $("#rBody").innerHTML = `<div class="box wide"><p class="empty">No swipes yet. Results fill in here as you swipe.</p></div>`; return; }
