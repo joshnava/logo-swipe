@@ -168,7 +168,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
 .editbar .count { color: var(--gold); font-size: 15px; font-variant-numeric: tabular-nums; }
 .edit .thumb { cursor: pointer; position: relative; }
 .edit .thumb.marked { outline: 2px solid var(--brick); outline-offset: -2px; }
-.edit .thumb.marked .art { opacity: .35; }
+.edit .thumb.marked .art { opacity: .7; }
 .edit .thumb.marked::after { content: "Remove"; position: absolute; top: 12px; right: 12px; background: var(--brick); color: var(--cream); font-size: 12px; padding: 3px 10px; border-radius: 999px; }
 .thumb .eid { display: none; }
 .edit .thumb .eid { display: block; color: var(--gold); font-size: 12px; margin-top: 2px; }
@@ -770,6 +770,7 @@ textarea { width: 100%; background: var(--deep); color: var(--cream); border: 1p
     let marked = new Set(lsGet("la-edit") || SUG), only = false;
     document.body.classList.add("edit"); $("#editBar").hidden = false;
     const thumbs = [...document.querySelectorAll("#bGrid .thumb")];
+    thumbs.forEach(f => { const im = f.querySelector("img"); if (im) { im.loading = "eager"; const s = im.getAttribute("src"); im.removeAttribute("src"); im.setAttribute("src", s); } });
     thumbs.forEach(f => {
       const c = BY_ID[f.dataset.id]; if (!c) return;
       const s = document.createElement("small"); s.className = "eid";
